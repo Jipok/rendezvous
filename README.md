@@ -12,7 +12,7 @@ Value limit: 1000 bytes
 
 Rate limit: 1 POST per minute
 
-Expire time: 1 hour
+Expire time: 2 hour
 
 ## 🚀 API Usage
 

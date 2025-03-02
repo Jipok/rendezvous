@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"flag"
 	"io"
@@ -19,7 +20,7 @@ var (
 	maxKeySize     = flag.Int("maxKeySize", 100, "maximum allowed key length in bytes")
 	maxValueSize   = flag.Int("maxValueSize", 1000, "maximum allowed value size in bytes")
 	maxNumKV       = flag.Int("maxNumKV", 500000, "maximum number of key-value pairs allowed")
-	expireDuration = flag.Duration("expireDuration", time.Hour, "duration after which a key expires")
+	expireDuration = flag.Duration("expireDuration", 2*time.Hour, "duration after which a key expires")
 	resetDuration  = flag.Duration("resetDuration", time.Minute, "duration between resets of the POST rate limit")
 	saveDuration   = flag.Duration("saveDuration", 30*time.Minute, "duration between automatic state saves")
 	port           = flag.String("port", "8080", "port on which the server listens")
@@ -196,22 +197,37 @@ func main() {
 	go resetPostRateLimit()
 	go periodicSave()
 
-	// Set up signal handler for graceful shutdown
+	addr := *listen + ":" + *port
+	server := &http.Server{
+		Addr:                         addr,
+		Handler:                      http.HandlerFunc(keyHandler),
+		ReadTimeout:                  10 * time.Second,
+		WriteTimeout:                 10 * time.Second,
+		MaxHeaderBytes:               1 << 13, // 8 kb
+		DisableGeneralOptionsHandler: true,
+	}
+
+	server.SetKeepAlivesEnabled(false)
+
+	// Graceful shutdown
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-sigs
-		log.Printf("Received signal %v, saving store before exit...", sig)
-		saveKVStore() // save before exit
+		log.Printf("Received signal %v, shutting down...", sig)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		saveKVStore()
+		if err := server.Shutdown(ctx); err != nil {
+			log.Printf("HTTP server shutdown error: %v", err)
+		}
 		os.Exit(0)
 	}()
 
-	// All requests are handled by keyHandler
-	http.HandleFunc("/", keyHandler)
-
-	addr := *listen + ":" + *port
 	log.Println("Server is starting on http://" + addr)
-	if err := http.ListenAndServe(addr, nil); err != nil {
+	if err := server.ListenAndServe(); err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
 }
