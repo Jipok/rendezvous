@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	_ "embed"
 	"flag"
@@ -29,6 +31,7 @@ var (
 
 //go:embed index.html
 var indexHtml []byte
+var indexHtmlGz []byte
 
 // Entry represents a stored key-value pair
 type Entry struct {
@@ -55,11 +58,11 @@ func keyHandler(w http.ResponseWriter, r *http.Request) {
 	// Serve embedded index.html for the root path
 	if r.URL.Path == "/" {
 		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+		w.Header().Set("Content-Encoding", "gzip")
 		w.Header().Set("Content-Type", "text/html")
-		w.Write(indexHtml)
+		w.Write(indexHtmlGz)
 		return
 	}
 
@@ -152,9 +155,6 @@ func keyHandler(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Write(value)
-
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
@@ -188,10 +188,23 @@ func resetPostRateLimit() {
 	}
 }
 
+// gzip indexHtml
+func precompressIndexHtml() {
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	if _, err := gz.Write(indexHtml); err != nil {
+		log.Fatalf("Error compressing index.html: %v", err)
+	}
+	if err := gz.Close(); err != nil {
+		log.Fatalf("Error closing gzip writer: %v", err)
+	}
+	indexHtmlGz = buf.Bytes()
+}
+
 func main() {
 	flag.Parse()
-
 	loadKVStore()
+	precompressIndexHtml()
 
 	go cleanupExpiredKeys()
 	go resetPostRateLimit()
