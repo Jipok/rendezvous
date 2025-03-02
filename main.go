@@ -21,11 +21,11 @@ import (
 var (
 	maxKeySize     = flag.Int("maxKeySize", 100, "maximum allowed key length in bytes")
 	maxValueSize   = flag.Int("maxValueSize", 1000, "maximum allowed value size in bytes")
-	maxNumKV       = flag.Int("maxNumKV", 500000, "maximum number of key-value pairs allowed")
+	maxNumKV       = flag.Int("maxNumKV", 100000, "maximum number of key-value pairs allowed")
 	expireDuration = flag.Duration("expireDuration", 2*time.Hour, "duration after which a key expires")
 	resetDuration  = flag.Duration("resetDuration", time.Minute, "duration between resets of the POST rate limit")
 	saveDuration   = flag.Duration("saveDuration", 30*time.Minute, "duration between automatic state saves")
-	port           = flag.String("port", "8080", "port on which the server listens")
+	port           = flag.String("port", "80", "port on which the server listens")
 	listen         = flag.String("l", "0.0.0.0", "interface to listen")
 )
 

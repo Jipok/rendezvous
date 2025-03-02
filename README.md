@@ -70,11 +70,11 @@ go build
 |-----------------|----------------|----------------------------------------------|
 | -maxKeySize     | 100            | Maximum key length in bytes                  |
 | -maxValueSize   | 1000           | Maximum value size in bytes                  |
-| -maxNumKV       | 500000         | Maximum number of key-value pairs            |
+| -maxNumKV       | 100000         | Maximum number of key-value pairs            |
 | -expireDuration | 2h             | Time after which keys expire                 |
 | -resetDuration  | 1m             | Duration between rate limit resets           |
 | -saveDuration   | 30m            | Duration between state saves                 |
-| -port           | 8080           | Server port                                  |
+| -port           | 80             | Server port                                  |
 | -l              | 0.0.0.0        | Interface to listen on                       |
 
 Example:
