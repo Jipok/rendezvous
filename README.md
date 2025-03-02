@@ -48,10 +48,10 @@ chmod +x rendezvous-server
 ### Using Go
 
 ```bash
-git clone https://github.com/Jipok/rendezvous-kv
-cd rendezvous-kv
+git clone https://github.com/Jipok/rendezvous
+cd rendezvous
 go build
-./rendezvous-kv
+./rendezvous-server
 ```
 
 ## 🔑 Features
@@ -71,7 +71,7 @@ go build
 | -maxKeySize     | 100            | Maximum key length in bytes                  |
 | -maxValueSize   | 1000           | Maximum value size in bytes                  |
 | -maxNumKV       | 500000         | Maximum number of key-value pairs            |
-| -expireDuration | 1h             | Time after which keys expire                 |
+| -expireDuration | 2h             | Time after which keys expire                 |
 | -resetDuration  | 1m             | Duration between rate limit resets           |
 | -saveDuration   | 30m            | Duration between state saves                 |
 | -port           | 8080           | Server port                                  |
