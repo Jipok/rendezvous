@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rendezvous Key-Value Server</title>
+    <style>
+        :root {
+            --background-color: #ffffff;
+            --text-color: #333333;
+            --header-color: #222222;
+            --link-color: #0366d6;
+            --code-background: #f6f8fa;
+            --border-color: #e1e4e8;
+            --table-stripe: #f6f8fa;
+        }
+        
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --background-color: #121212;
+                --text-color: #e0e0e0;
+                --header-color: #ffffff;
+                --link-color: #58a6ff;
+                --code-background: #1e1e1e;
+                --border-color: #30363d;
+                --table-stripe: #1c1c1c;
+            }
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.6;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        h1, h2, h3, h4 {
+            color: var(--header-color);
+            margin: 1.5rem 0 1rem 0;
+        }
+        
+        h1 {
+            font-size: 2.2rem;
+            margin-top: 0;
+        }
+        
+        h2 {
+            font-size: 1.8rem;
+            margin-top: 2rem;
+        }
+        
+        a {
+            color: var(--link-color);
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        p {
+            margin-bottom: 1rem;
+        }
+        
+        ul {
+            margin-left: 2rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        li {
+            margin-bottom: 0.5rem;
+        }
+        
+        pre {
+            background-color: var(--code-background);
+            border-radius: 4px;
+            padding: 1rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+            border: 1px solid var(--border-color);
+        }
+        
+        code {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+            color: inherit;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+        }
+        
+        table, th, td {
+            border: 1px solid var(--border-color);
+        }
+        
+        th, td {
+            padding: 10px 15px;
+            text-align: left;
+        }
+        
+        thead {
+            background-color: var(--code-background);
+        }
+        
+        tbody tr:nth-child(even) {
+            background-color: var(--table-stripe);
+        }
+        
+        .emoji {
+            margin-right: 5px;
+        }
+        
+        @media (max-width: 600px) {
+            body {
+                padding: 15px;
+            }
+            
+            pre {
+                font-size: 0.9rem;
+            }
+            
+            table {
+                display: block;
+                overflow-x: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Rendezvous Key-Value Server</h1>
+    </header>
+    
+    <main>
+        <p>A lightweight, public key-value store server designed as a rendezvous/bootstrap point for mesh networks, distributed applications, and general-purpose key-value storage without registration.</p>
+        
+        <h2><span class="emoji">🌐</span> Publicly Hosted Instance</h2>
+        <p>A public instance is available at: <a href="https://rendezvous.jipok.ru" target="_blank" class="host-url">https://rendezvous.jipok.ru</a></p>
+        <ul>
+            <li>Key limit: 100 bytes</li>
+            <li>Value limit: 1000 bytes</li>
+            <li>Rate limit: 1 POST per minute</li>
+            <li>Expire time: 1 hour</li>
+        </ul>
+        
+        <h2><span class="emoji">🚀</span> API Usage</h2>
+        <h3>Store a Value</h3>
+        <pre><code>curl -X POST -d "your-data-here" {CURRENT_HOST}/your-key</code></pre>
+        
+        <h3>Retrieve a Value</h3>
+        <pre><code>curl {CURRENT_HOST}/your-key</code></pre>
+        
+        <h2><span class="emoji">📋</span> Use Cases</h2>
+        <ul>
+            <li><strong>Peer Discovery</strong>: Help distributed systems and mesh networks discover initial peers</li>
+            <li><strong>Configuration Distribution</strong>: Share configuration files or bootstrap information</li>
+            <li><strong>Temporary Data Exchange</strong>: Easy way to share ephemeral data between systems</li>
+            <li><strong>IoT Device Coordination</strong>: Simple communication point for IoT devices</li>
+        </ul>
+        
+        <h2><span class="emoji">🔧</span> Self-hosted</h2>
+        <h3>Using prebuilt</h3>
+        <pre><code>wget https://github.com/Jipok/rendezvous/releases/latest/download/rendezvous-server
+chmod +x rendezvous-server
+./rendezvous-server</code></pre>
+        
+        <h3>Using Go</h3>
+        <pre><code>git clone https://github.com/Jipok/rendezvous-kv
+cd rendezvous-kv
+go build
+./rendezvous-kv</code></pre>
+        
+        <h2><span class="emoji">🔑</span> Features</h2>
+        <ul>
+            <li><strong>No Registration</strong>: Just use it directly, no accounts needed</li>
+            <li><strong>Simple HTTP API</strong>: Store and retrieve values with basic HTTP GET/POST requests</li>
+            <li><strong>Ephemeral Storage</strong>: Keys automatically expire after configured time</li>
+            <li><strong>Rate Limited</strong>: Basic protection against abuse (one POST per IP per minute)</li>
+            <li><strong>Configurable Limits</strong>: Adjustable key/value sizes and storage capacity</li>
+            <li><strong>Zero Dependencies</strong>: Just the server, no databases needed</li>
+        </ul>
+        
+        <h2><span class="emoji">⚙️</span> Configuration Options</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Flag</th>
+                    <th>Default</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>-maxKeySize</td>
+                    <td>100</td>
+                    <td>Maximum key length in bytes</td>
+                </tr>
+                <tr>
+                    <td>-maxValueSize</td>
+                    <td>1000</td>
+                    <td>Maximum value size in bytes</td>
+                </tr>
+                <tr>
+                    <td>-maxNumKV</td>
+                    <td>500000</td>
+                    <td>Maximum number of key-value pairs</td>
+                </tr>
+                <tr>
+                    <td>-expireDuration</td>
+                    <td>1h</td>
+                    <td>Time after which keys expire</td>
+                </tr>
+                <tr>
+                    <td>-resetDuration</td>
+                    <td>1m</td>
+                    <td>Duration between rate limit resets</td>
+                </tr>
+                <tr>
+                    <td>-saveDuration</td>
+                    <td>30m</td>
+                    <td>Duration between state saves</td>
+                </tr>
+                <tr>
+                    <td>-port</td>
+                    <td>8080</td>
+                    <td>Server port</td>
+                </tr>
+                <tr>
+                    <td>-l</td>
+                    <td>0.0.0.0</td>
+                    <td>Interface to listen on</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <p>Example:</p>
+        <pre><code>./rendezvous-server -maxValueSize 4096 -expireDuration 24h -port 9000</code></pre>
+        
+        <h2><span class="emoji">⚠️</span> Limitations</h2>
+        <ul>
+            <li><strong>Ephemeral Storage</strong>: All data is temporary and will be deleted after expiration</li>
+            <li><strong>No Encryption</strong>: Data is stored and transmitted(except TLS) without encryption</li>
+            <li><strong>No Authentication</strong>: Anyone can read any key</li>
+            <li><strong>Rate Limiting</strong>: Only one POST request per IP address per minute</li>
+            <li><strong>IPv4 Only</strong>: For rate-limit purpose supports only IPv4 addresses</li>
+        </ul>
+    </main>
+
+    <script>
+        // Replace all occurrences of the {CURRENT_HOST} with the current host
+        document.addEventListener('DOMContentLoaded', function() {
+            const currentHost = window.location.protocol + '//' + window.location.host;
+            document.body.innerHTML = document.body.innerHTML.replace(new RegExp('{CURRENT_HOST}', 'g'), currentHost)
+        });
+    </script>
+</body>
+</html>
