@@ -28,12 +28,27 @@ curl -X POST -d "your-data-here" https://rendezvous.jipok.ru/your-key
 curl https://rendezvous.jipok.ru/your-key
 ```
 
+### IP-Protected Keys
+
+For keys prefixed with `/ip/`, server enforces that part after `/ip/` begins with client's IP address:
+
+```bash
+# This will work if your IP is 20.18.12.10
+curl -X POST -d "my-server-info" https://rendezvous.jipok.ru/ip/20.18.12.10/service1
+
+# This will be rejected if your IP is not 101.50.0.191
+curl -X POST -d "spoofed-data" https://rendezvous.jipok.ru/ip/101.50.0.191/service1
+```
+
+This feature ensures servers can publish information about themselves that others cannot overwrite.
+
 ## 📋 Use Cases
 
 - **Peer Discovery**: Help distributed systems and mesh networks discover initial peers
 - **Configuration Distribution**: Share configuration files or bootstrap information
 - **Temporary Data Exchange**: Easy way to share ephemeral data between systems
 - **IoT Device Coordination**: Simple communication point for IoT devices
+- **Secure Self-Identification**: Servers can publish their details under IP-protected keys
 
 # 🔧 Self-hosted
 
@@ -86,7 +101,7 @@ Example:
 ## ⚠️ Limitations
 
 - **Ephemeral Storage**: All data is temporary and will be deleted after expiration
-- **No Encryption**: Data is stored and transmitted(except TLS) without encryption
-- **No Authentication**: Anyone can read any key
+- **No Encryption**: Data is stored and transmitted without encryption(except TLS)
+- **No Authentication**: Anyone can read/write any key
 - **Rate Limiting**: Only one POST request per IP address per minute
 - **IPv4 Only**: For rate-limit purpose supports only IPv4 addresses

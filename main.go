@@ -6,12 +6,14 @@ import (
 	"context"
 	_ "embed"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -27,6 +29,7 @@ var (
 	saveDuration   = flag.Duration("saveDuration", 30*time.Minute, "duration between automatic state saves")
 	port           = flag.String("port", "80", "port on which the server listens")
 	listen         = flag.String("l", "0.0.0.0", "interface to listen")
+	disableWaring  = flag.Bool("disableLocalIPWaring", false, "disable warnings about requests from localhost")
 )
 
 //go:embed index.html
@@ -51,10 +54,45 @@ var (
 	mu sync.RWMutex
 )
 
-// keyHandler handles GET and POST requests to /<key>
-// GET returns the stored value (if exists and not expired)
-// POST reads the request body as the new value
-func keyHandler(w http.ResponseWriter, r *http.Request) {
+// getRealIP extracts the real client IP address taking proxies into account
+func getRealIP(r *http.Request) string {
+	// First check the X-Forwarded-For header, which is commonly set by proxies
+	// Format: X-Forwarded-For: client, proxy1, proxy2, ...
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// Take the first IP in the list, which is the original client IP
+		ips := strings.Split(xff, ",")
+		ip := strings.TrimSpace(ips[0])
+		return ip
+	}
+
+	// Check the X-Real-IP header, which is another common proxy header
+	if xrip := r.Header.Get("X-Real-IP"); xrip != "" {
+		return xrip
+	}
+
+	// Fallback to RemoteAddr if no proxy headers are present
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr // Return as is if parsing fails
+	}
+
+	if !*disableWaring && ip == "127.0.0.1" {
+		// Log details that might help diagnose the issue
+		referrer := r.Header.Get("Referer")
+		ua := r.Header.Get("User-Agent")
+		forwarded := r.Header.Get("X-Forwarded-For")
+		realIP := r.Header.Get("X-Real-IP")
+
+		fmt.Printf("WARNING: Request from localhost IP (%s). This may indicate incorrectly configured proxy.\n", ip)
+		fmt.Printf("Request: %s %s\n", r.Method, r.URL.Path)
+		fmt.Printf("Referer: %s\nUser-Agent: %s\n", referrer, ua)
+		fmt.Printf("Proxy headers:\n  X-Forwarded-For: %s\n  X-Real-IP: %s\n", forwarded, realIP)
+	}
+
+	return ip
+}
+
+func mainHandler(w http.ResponseWriter, r *http.Request) {
 	// Serve embedded index.html for the root path
 	if r.URL.Path == "/" {
 		if r.Method != http.MethodGet {
@@ -72,22 +110,41 @@ func keyHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Key is required", http.StatusBadRequest)
 		return
 	}
+
 	// Check key length limit
 	if len(key) > *maxKeySize {
 		http.Error(w, "Key too long", http.StatusBadRequest)
 		return
 	}
 
+	// Special handling for /ip/ paths
+	if len(key) > 3 && key[:3] == "ip/" {
+		ipKey := key[3:] // Extract the part after "/ip/"
+
+		// For POST requests, check if the key starts with client's IP
+		if r.Method == http.MethodPost {
+			ip := getRealIP(r)
+			if !strings.HasPrefix(ipKey, ip+"/") {
+				http.Error(w, "Forbidden: key must start with your IP address and slash /", http.StatusForbidden)
+				return
+			}
+		}
+
+		// Continue with normal GET/POST handling
+	}
+
+	handleKeyRequest(w, r, key)
+}
+
+// handleKeyRequest processes GET and POST for a specific key
+func handleKeyRequest(w http.ResponseWriter, r *http.Request, key string) {
 	switch r.Method {
 	case http.MethodPost:
-		// Get client's IP address
-		ip, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			return
-		}
+		// Get the real client IP address, considering proxy headers
+		ip := getRealIP(r)
 		parsedIP := net.ParseIP(ip)
 		if parsedIP == nil {
-			return
+			return // Invalid IP format
 		}
 		ip4 := parsedIP.To4()
 		if ip4 == nil {
@@ -213,7 +270,7 @@ func main() {
 	addr := *listen + ":" + *port
 	server := &http.Server{
 		Addr:                         addr,
-		Handler:                      http.HandlerFunc(keyHandler),
+		Handler:                      http.HandlerFunc(mainHandler),
 		ReadTimeout:                  10 * time.Second,
 		WriteTimeout:                 10 * time.Second,
 		MaxHeaderBytes:               1 << 13, // 8 kb

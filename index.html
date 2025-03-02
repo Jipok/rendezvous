@@ -199,13 +199,23 @@
         
         <h3>Retrieve a Value</h3>
         <pre><code>curl {CURRENT_HOST}/your-key</code></pre>
-        
+
+        <h3>IP-Protected Keys</h3>
+        <p>For keys prefixed with <code>/ip/</code>, the server enforces that the part after <code>/ip/</code> begins with the client's IP address:</p>
+        <pre><code># This will work if your IP is 20.18.12.10
+curl -X POST -d "my-server-info" {CURRENT_HOST}/ip/20.18.12.10/service1
+
+# This will be rejected if your IP is not 101.50.0.191
+curl -X POST -d "spoofed-data" {CURRENT_HOST}/ip/101.50.0.191/service1</code></pre>
+        <p>This feature ensures servers can publish information about themselves that others cannot overwrite.</p>
+
         <h2><span class="emoji">📋</span> Use Cases</h2>
         <ul>
             <li><strong>Peer Discovery</strong>: Help distributed systems and mesh networks discover initial peers</li>
             <li><strong>Configuration Distribution</strong>: Share configuration files or bootstrap information</li>
             <li><strong>Temporary Data Exchange</strong>: Easy way to share ephemeral data between systems</li>
             <li><strong>IoT Device Coordination</strong>: Simple communication point for IoT devices</li>
+            <li><strong>Secure Self-Identification</strong>: Servers can publish their details under IP-protected keys</li>
         </ul>
         
         <h2><span class="emoji">🔧</span> Self-hosted</h2>
