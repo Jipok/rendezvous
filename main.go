@@ -104,8 +104,8 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract key from URL path (trim leading '/')
-	key := r.URL.Path[1:]
+	// Safely extract key from URL path
+	key := strings.TrimPrefix(r.URL.Path, "/")
 	if key == "" {
 		http.Error(w, "Key is required", http.StatusBadRequest)
 		return
@@ -129,8 +129,6 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-
-		// Continue with normal GET/POST handling
 	}
 
 	handleKeyRequest(w, r, key)
