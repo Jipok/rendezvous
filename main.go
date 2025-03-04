@@ -54,42 +54,43 @@ var (
 	mu sync.RWMutex
 )
 
-// getRealIP extracts the real client IP address taking proxies into account
-func getRealIP(r *http.Request) string {
-	// First check the X-Forwarded-For header, which is commonly set by proxies
-	// Format: X-Forwarded-For: client, proxy1, proxy2, ...
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// Take the first IP in the list, which is the original client IP
-		ips := strings.Split(xff, ",")
-		ip := strings.TrimSpace(ips[0])
-		return ip
-	}
-
-	// Check the X-Real-IP header, which is another common proxy header
-	if xrip := r.Header.Get("X-Real-IP"); xrip != "" {
-		return xrip
-	}
-
-	// Fallback to RemoteAddr if no proxy headers are present
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+// getRealIP extracts the real client IP address and returns both the parsed IP and its string representation.
+// It only trusts proxy headers if the request originates from a private IP.
+func getRealIP(r *http.Request) (net.IP, string) {
+	// Parse RemoteAddr to separate IP and port
+	remoteIPStr, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return r.RemoteAddr // Return as is if parsing fails
+		remoteIPStr = r.RemoteAddr
+	}
+	remoteIP := net.ParseIP(remoteIPStr)
+
+	// Only trust proxy headers if the request came from a trusted (private) source
+	if remoteIP.IsPrivate() || remoteIP.IsLoopback() {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			// Split by comma and take the first valid IP candidate
+			ips := strings.Split(xff, ",")
+			for _, ipCandidate := range ips {
+				ipCandidate = strings.TrimSpace(ipCandidate)
+				if parsedIP := net.ParseIP(ipCandidate); parsedIP != nil {
+					return parsedIP, ipCandidate
+				}
+			}
+		}
 	}
 
-	if !*disableWaring && ip == "127.0.0.1" {
-		// Log details that might help diagnose the issue
+	if !*disableWaring && remoteIPStr == "127.0.0.1" {
+		// Log details for diagnosing potentially misconfigured proxy requests
 		referrer := r.Header.Get("Referer")
 		ua := r.Header.Get("User-Agent")
 		forwarded := r.Header.Get("X-Forwarded-For")
 		realIP := r.Header.Get("X-Real-IP")
-
-		fmt.Printf("WARNING: Request from localhost IP (%s). This may indicate incorrectly configured proxy.\n", ip)
+		fmt.Printf("WARNING: Request from localhost IP (%s). This may indicate incorrectly configured proxy.\n", remoteIPStr)
 		fmt.Printf("Request: %s %s\n", r.Method, r.URL.Path)
 		fmt.Printf("Referer: %s\nUser-Agent: %s\n", referrer, ua)
-		fmt.Printf("Proxy headers:\n  X-Forwarded-For: %s\n  X-Real-IP: %s\n", forwarded, realIP)
+		fmt.Printf("Proxy headers:\n  X-Forwarded-For: %s\n  X-Real-IP(not supported): %s\n", forwarded, realIP)
 	}
 
-	return ip
+	return remoteIP, remoteIPStr
 }
 
 func mainHandler(w http.ResponseWriter, r *http.Request) {
@@ -123,7 +124,7 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 
 		// For POST requests, check if the key starts with client's IP
 		if r.Method == http.MethodPost {
-			ip := getRealIP(r)
+			_, ip := getRealIP(r)
 			if !strings.HasPrefix(ipKey, ip+"/") {
 				http.Error(w, "Forbidden: key must start with your IP address and slash /", http.StatusForbidden)
 				return
@@ -139,8 +140,7 @@ func handleKeyRequest(w http.ResponseWriter, r *http.Request, key string) {
 	switch r.Method {
 	case http.MethodPost:
 		// Get the real client IP address, considering proxy headers
-		ip := getRealIP(r)
-		parsedIP := net.ParseIP(ip)
+		parsedIP, _ := getRealIP(r)
 		if parsedIP == nil {
 			return // Invalid IP format
 		}
