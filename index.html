@@ -196,9 +196,23 @@
         <h2><span class="emoji">🚀</span> API Usage</h2>
         <h3>Store a Value</h3>
         <pre><code>curl -X POST -d "your-data-here" {CURRENT_HOST}/your-key</code></pre>
+        <p>The expiration time for a key is reset with every successful POST request, extending its lifetime.</p>
         
         <h3>Retrieve a Value</h3>
         <pre><code>curl {CURRENT_HOST}/your-key</code></pre>
+
+        <h3>Protecting Values with Owner Secret</h3>
+        <p>You can protect your values from modification by adding the <code>X-Owner-Secret</code> header when posting:</p>
+        <pre><code># Store a value with owner protection
+curl -X POST -d "your-protected-data" -H "X-Owner-Secret: your-secret-here" {CURRENT_HOST}/your-key
+
+# Update a protected value (requires the same secret)
+curl -X POST -d "your-new-data" -H "X-Owner-Secret: your-secret-here" {CURRENT_HOST}/your-key
+
+# This will be rejected if the secret doesn't match
+curl -X POST -d "unauthorized-update" -H "X-Owner-Secret: wrong-secret" {CURRENT_HOST}/your-key</code></pre>
+        <p>Anyone can still read the value, but only someone with the correct secret can modify it.</p>
+        <p><strong>Note</strong>: The secret and the value together must not exceed the maximum value size limit (1000 bytes by default).</p>
 
         <h3>IP-Protected Keys</h3>
         <p>For keys prefixed with <code>/ip/</code>, the server enforces that the part after <code>/ip/</code> begins with the client's IP address:</p>
@@ -225,10 +239,10 @@ chmod +x rendezvous-server
 ./rendezvous-server</code></pre>
         
         <h3>Using Go</h3>
-        <pre><code>git clone https://github.com/Jipok/rendezvous-kv
-cd rendezvous-kv
+        <pre><code>git clone https://github.com/Jipok/rendezvous
+cd rendezvous
 go build
-./rendezvous-kv</code></pre>
+./rendezvous-server</code></pre>
         
         <h2><span class="emoji">🔑</span> Features</h2>
         <ul>
@@ -238,6 +252,7 @@ go build
             <li><strong>Rate Limited</strong>: Basic protection against abuse (one POST per IP per minute)</li>
             <li><strong>Configurable Limits</strong>: Adjustable key/value sizes and storage capacity</li>
             <li><strong>Zero Dependencies</strong>: Just the server, no databases needed</li>
+            <li><strong>Value Protection</strong>: Optional secret-based protection for value updates</li>
         </ul>
         
         <h2><span class="emoji">⚙️</span> Configuration</h2>
@@ -258,16 +273,16 @@ go build
                 <tr>
                     <td>-maxValueSize</td>
                     <td>1000</td>
-                    <td>Maximum value size in bytes</td>
+                    <td>Maximum value size in bytes (including secret)</td>
                 </tr>
                 <tr>
                     <td>-maxNumKV</td>
-                    <td>500000</td>
+                    <td>100000</td>
                     <td>Maximum number of key-value pairs</td>
                 </tr>
                 <tr>
                     <td>-expireDuration</td>
-                    <td>1h</td>
+                    <td>2h</td>
                     <td>Time after which keys expire</td>
                 </tr>
                 <tr>
@@ -282,7 +297,7 @@ go build
                 </tr>
                 <tr>
                     <td>-port</td>
-                    <td>8080</td>
+                    <td>80</td>
                     <td>Server port</td>
                 </tr>
                 <tr>
@@ -300,7 +315,7 @@ go build
         <ul>
             <li><strong>Ephemeral Storage</strong>: All data is temporary and will be deleted after expiration</li>
             <li><strong>No Encryption</strong>: Data is stored and transmitted without encryption(except TLS)</li>
-            <li><strong>No Authentication</strong>: Anyone can read any key</li>
+            <li><strong>Size Limits</strong>: Value size limit includes owner secret if used</li>
             <li><strong>Rate Limiting</strong>: Only one POST request per IP address per minute</li>
             <li><strong>IPv4 Only</strong>: For rate-limit purpose supports only IPv4 addresses</li>
         </ul>

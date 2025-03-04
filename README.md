@@ -22,11 +22,32 @@ Expire time: 2 hour
 curl -X POST -d "your-data-here" https://rendezvous.jipok.ru/your-key
 ```
 
+The expiration time for a key is reset with every successful POST request, extending its lifetime.
+
 ### Retrieve a Value
 
 ```bash
 curl https://rendezvous.jipok.ru/your-key
 ```
+
+### Protecting Values with Owner Secret
+
+You can protect your values from modification by adding the `X-Owner-Secret` header when posting:
+
+```bash
+# Store a value with owner protection
+curl -X POST -d "your-protected-data" -H "X-Owner-Secret: your-secret-here" https://rendezvous.jipok.ru/your-key
+
+# Update a protected value (requires the same secret)
+curl -X POST -d "your-new-data" -H "X-Owner-Secret: your-secret-here" https://rendezvous.jipok.ru/your-key
+
+# This will be rejected if the secret doesn't match
+curl -X POST -d "unauthorized-update" -H "X-Owner-Secret: wrong-secret" https://rendezvous.jipok.ru/your-key
+```
+
+Anyone can still read the value, but only someone with the correct secret can modify it.
+
+**Note**: The secret and the value together must not exceed the maximum value size limit (1000 bytes by default).
 
 ### IP-Protected Keys
 
@@ -77,20 +98,21 @@ go build
 - **Rate Limited**: Basic protection against abuse (one POST per IP per minute)
 - **Configurable Limits**: Adjustable key/value sizes and storage capacity
 - **Zero Dependencies**: Just the server, no databases needed
+- **Value Protection**: Optional secret-based protection for value updates
 
 
 ## ⚙️ Configuration Options
 
-| Flag            | Default        | Description                                  |
-|-----------------|----------------|----------------------------------------------|
-| -maxKeySize     | 100            | Maximum key length in bytes                  |
-| -maxValueSize   | 1000           | Maximum value size in bytes                  |
-| -maxNumKV       | 100000         | Maximum number of key-value pairs            |
-| -expireDuration | 2h             | Time after which keys expire                 |
-| -resetDuration  | 1m             | Duration between rate limit resets           |
-| -saveDuration   | 30m            | Duration between state saves                 |
-| -port           | 80             | Server port                                  |
-| -l              | 0.0.0.0        | Interface to listen on                       |
+| Flag            | Default        | Description                                    |
+|-----------------|----------------|------------------------------------------------|
+| -maxKeySize     | 100            | Maximum key length in bytes                    |
+| -maxValueSize   | 1000           | Maximum value size in bytes (including secret) |
+| -maxNumKV       | 100000         | Maximum number of key-value pairs              |
+| -expireDuration | 2h             | Time after which keys expire                   |
+| -resetDuration  | 1m             | Duration between rate limit resets             |
+| -saveDuration   | 30m            | Duration between state saves                   |
+| -port           | 80             | Server port                                    |
+| -l              | 0.0.0.0        | Interface to listen on                         |
 
 Example:
 
@@ -102,6 +124,6 @@ Example:
 
 - **Ephemeral Storage**: All data is temporary and will be deleted after expiration
 - **No Encryption**: Data is stored and transmitted without encryption(except TLS)
-- **No Authentication**: Anyone can read/write any key
+- **Size Limits**: Value size limit includes owner secret if used
 - **Rate Limiting**: Only one POST request per IP address per minute
 - **IPv4 Only**: For rate-limit purpose supports only IPv4 addresses

@@ -39,6 +39,7 @@ var indexHtmlGz []byte
 // Entry represents a stored key-value pair
 type Entry struct {
 	Value      []byte    // stored value (can be binary)
+	Secret     string    // secret for key ownership (empty if not owned)
 	LastUpdate time.Time // timestamp of last update
 }
 
@@ -163,21 +164,43 @@ func handleKeyRequest(w http.ResponseWriter, r *http.Request, key string) {
 		postRateLimit[ipKey] = struct{}{}
 		mu.Unlock()
 
-		// Read value from request body with limit
-		body, err := io.ReadAll(io.LimitReader(r.Body, int64(*maxValueSize)+1))
+		authSecret := r.Header.Get("X-Owner-Secret")
+		// Check that the secret alone does not exceed maxValueSize
+		if len(authSecret) > *maxValueSize {
+			http.Error(w, "Value plus secret too large", http.StatusBadRequest)
+			return
+		}
+		// Calculate the maximum allowed length for the value after taking the secret into account
+		allowedValueSize := *maxValueSize - len(authSecret)
+		// Read the value from the request body with the adjusted limit
+		body, err := io.ReadAll(io.LimitReader(r.Body, int64(allowedValueSize)+1))
 		if err != nil {
 			http.Error(w, "Error reading body", http.StatusInternalServerError)
 			return
 		}
-		if len(body) > *maxValueSize {
-			http.Error(w, "Value too large", http.StatusBadRequest)
+		if len(body) > allowedValueSize {
+			if authSecret != "" {
+				http.Error(w, "Value plus secret too large", http.StatusBadRequest)
+			} else {
+				http.Error(w, "Value too large", http.StatusBadRequest)
+
+			}
 			return
 		}
 
 		now := time.Now()
 		mu.Lock()
-		// If the key exists, update it; otherwise create a new entry
 		if entry, exists := kvStore[key]; exists {
+			// If the key is owned (non-empty secret) then the provided secret must match
+			if entry.Secret != "" && entry.Secret != authSecret {
+				mu.Unlock()
+				http.Error(w, "Forbidden: Incorrect secret", http.StatusForbidden)
+				return
+			}
+			// If the key is not yet owned and the client provides a secret, register it
+			if entry.Secret == "" && authSecret != "" {
+				entry.Secret = authSecret
+			}
 			entry.Value = body
 			entry.LastUpdate = now
 		} else {
@@ -188,6 +211,7 @@ func handleKeyRequest(w http.ResponseWriter, r *http.Request, key string) {
 			}
 			kvStore[key] = &Entry{
 				Value:      body,
+				Secret:     authSecret,
 				LastUpdate: now,
 			}
 		}
