@@ -17,6 +17,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/Jipok/go-persist"
 )
 
 // Command-line flags for configuration
@@ -29,7 +31,7 @@ var (
 	saveDuration   = flag.Duration("saveDuration", 30*time.Minute, "duration between automatic state saves")
 	port           = flag.String("port", "80", "port on which the server listens")
 	listen         = flag.String("l", "0.0.0.0", "interface to listen")
-	disableWaring  = flag.Bool("disableLocalIPWaring", false, "disable warnings about requests from localhost")
+	disableWarning = flag.Bool("disableLocalIPWaring", false, "disable warnings about requests from localhost")
 )
 
 //go:embed index.html
@@ -38,20 +40,19 @@ var indexHtmlGz []byte
 
 // Entry represents a stored key-value pair
 type Entry struct {
-	Value      []byte    // stored value (can be binary)
-	Secret     string    // secret for key ownership (empty if not owned)
-	LastUpdate time.Time // timestamp of last update
+	Value      []byte `json:"v"`           // stored value (can be binary)
+	Secret     string `json:"s,omitempty"` // secret for key ownership (empty if not owned)
+	LastUpdate int64  `json:"t"`           // timestamp of last update
 }
 
 var (
-	// kvStore stores key -> *Entry.
-	kvStore = make(map[string]*Entry)
+	kvStore *persist.Store
+	kvMap   *persist.PersistMap[*Entry] // stores key -> *Entry.
 
 	// postRateLimit is a set storing IPs which already did a POST in the current minute
 	// Using struct{} as the value saves memory
 	postRateLimit = make(map[[4]byte]struct{})
-
-	// mu protects the global maps: kvStore and postRateLimit
+	// mu protects postRateLimit
 	mu sync.RWMutex
 )
 
@@ -79,7 +80,7 @@ func getRealIP(r *http.Request) (net.IP, string) {
 		}
 	}
 
-	if !*disableWaring && remoteIPStr == "127.0.0.1" {
+	if !*disableWarning && remoteIPStr == "127.0.0.1" {
 		// Log details for diagnosing potentially misconfigured proxy requests
 		referrer := r.Header.Get("Referer")
 		ua := r.Header.Get("User-Agent")
@@ -189,11 +190,9 @@ func handleKeyRequest(w http.ResponseWriter, r *http.Request, key string) {
 		}
 
 		now := time.Now()
-		mu.Lock()
-		if entry, exists := kvStore[key]; exists {
+		if entry, exists := kvMap.Get(key); exists {
 			// If the key is owned (non-empty secret) then the provided secret must match
 			if entry.Secret != "" && entry.Secret != authSecret {
-				mu.Unlock()
 				http.Error(w, "Forbidden: Incorrect secret", http.StatusForbidden)
 				return
 			}
@@ -202,35 +201,30 @@ func handleKeyRequest(w http.ResponseWriter, r *http.Request, key string) {
 				entry.Secret = authSecret
 			}
 			entry.Value = body
-			entry.LastUpdate = now
+			entry.LastUpdate = now.Unix()
 		} else {
-			if len(kvStore) >= *maxNumKV {
-				mu.Unlock()
+			if kvMap.Size() >= *maxNumKV {
 				http.Error(w, "Store capacity reached", http.StatusInsufficientStorage)
 				return
 			}
-			kvStore[key] = &Entry{
+			kvMap.SetAsync(key, &Entry{
 				Value:      body,
 				Secret:     authSecret,
-				LastUpdate: now,
-			}
+				LastUpdate: now.Unix(),
+			})
 		}
-		mu.Unlock()
 
 		w.Write([]byte("OK"))
 
 	case http.MethodGet:
-		mu.RLock()
-		entry, exists := kvStore[key]
+		entry, exists := kvMap.Get(key)
 		if !exists {
-			mu.RUnlock()
 			http.Error(w, "Key not found", http.StatusNotFound)
 			return
 		}
 
 		// Copy the stored value
 		value := entry.Value
-		mu.RUnlock()
 
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Write(value)
@@ -243,14 +237,13 @@ func cleanupExpiredKeys() {
 		time.Sleep(1 * time.Minute)
 		now := time.Now()
 		expiredCount := 0
-		mu.Lock()
-		for key, entry := range kvStore {
-			if now.Sub(entry.LastUpdate) > *expireDuration {
-				delete(kvStore, key)
+		kvMap.Range(func(key string, entry *Entry) bool {
+			if now.Sub(time.Unix(entry.LastUpdate, 0)) > *expireDuration {
+				kvMap.Delete(key)
 				expiredCount++
 			}
-		}
-		mu.Unlock()
+			return true
+		})
 		if expiredCount > 0 {
 			log.Printf("Cleaned up %d expired keys", expiredCount)
 		}
@@ -282,12 +275,24 @@ func precompressIndexHtml() {
 
 func main() {
 	flag.Parse()
-	loadKVStore()
 	precompressIndexHtml()
+
+	var err error
+	kvStore, err = persist.Open("store.db")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer kvStore.Close()
+
+	kvStore.SetSyncInterval(*saveDuration)
+
+	kvMap, err = persist.Map[*Entry](kvStore, "kv")
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	go cleanupExpiredKeys()
 	go resetPostRateLimit()
-	go periodicSave()
 
 	addr := *listen + ":" + *port
 	server := &http.Server{
@@ -308,14 +313,12 @@ func main() {
 		sig := <-sigs
 		log.Printf("Received signal %v, shutting down...", sig)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		saveKVStore()
 		if err := server.Shutdown(ctx); err != nil {
 			log.Printf("HTTP server shutdown error: %v", err)
 		}
-		os.Exit(0)
 	}()
 
 	log.Println("Server is starting on http://" + addr)
