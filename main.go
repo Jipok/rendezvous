@@ -120,18 +120,13 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Special handling for /ip/ paths
-	if len(key) > 3 && key[:3] == "ip/" {
-		ipKey := key[3:] // Extract the part after "/ip/"
-
-		// For POST requests, check if the key starts with client's IP
-		if r.Method == http.MethodPost {
-			_, ip := getRealIP(r)
-			if !strings.HasPrefix(ipKey, ip+"/") {
-				http.Error(w, "Forbidden: key must start with your IP address and slash /", http.StatusForbidden)
-				return
-			}
-		}
+	// Special handling for /ip/ paths in POST requests
+	if len(key) > 3 && key[:3] == "ip/" && r.Method == http.MethodPost {
+		// Automatically prefix POST keys with client's IP
+		_, clientIP := getRealIP(r)
+		remainder := key[3:] // part after "ip/"
+		// Construct the effective key as "ip/<clientIP>/<remaining part>"
+		key = "ip/" + clientIP + "/" + remainder
 	}
 
 	handleKeyRequest(w, r, key)
@@ -184,7 +179,6 @@ func handleKeyRequest(w http.ResponseWriter, r *http.Request, key string) {
 				http.Error(w, "Value plus secret too large", http.StatusBadRequest)
 			} else {
 				http.Error(w, "Value too large", http.StatusBadRequest)
-
 			}
 			return
 		}
@@ -214,7 +208,13 @@ func handleKeyRequest(w http.ResponseWriter, r *http.Request, key string) {
 			})
 		}
 
-		w.Write([]byte("OK"))
+		// For ip keys, return client's IP address in the response instead of "OK"
+		if strings.HasPrefix(key, "ip/") {
+			_, ipStr := getRealIP(r)
+			w.Write([]byte(ipStr))
+		} else {
+			w.Write([]byte("OK"))
+		}
 
 	case http.MethodGet:
 		entry, exists := kvMap.Get(key)

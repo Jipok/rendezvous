@@ -51,17 +51,18 @@ Anyone can still read the value, but only someone with the correct secret can mo
 
 ### IP-Protected Keys
 
-For keys prefixed with `/ip/`, server enforces that part after `/ip/` begins with client's IP address:
+For paths prefixed with `/ip/`, the server automatically injects the client's IP address into the key:
 
 ```bash
-# This will work if your IP is 20.18.12.10
-curl -X POST -d "my-server-info" https://rendezvous.jipok.ru/ip/20.18.12.10/service1
+# If your client IP is 20.18.12.10, this actually stores the value under
+# the key "ip/20.18.12.10/service1" automatically.
+# The response will return your public IP address instead of "OK"
+curl -X POST -d "my-server-info" https://rendezvous.jipok.ru/ip/service1
 
-# This will be rejected if your IP is not 101.50.0.191
-curl -X POST -d "spoofed-data" https://rendezvous.jipok.ru/ip/101.50.0.191/service1
+curl https://rendezvous.jipok.ru/ip/20.18.12.10/service1
 ```
 
-This feature ensures servers can publish information about themselves that others cannot overwrite.
+This feature makes it easy for servers to publish information that only they can modify, without needing to know their public IP in advance. Stored key is automatically prefixed with client's IP, preventing others from overwriting the data.
 
 ## 📋 Use Cases
 
