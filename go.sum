@@ -1,4 +1,4 @@
-github.com/Jipok/go-persist v1.2.0 h1:kmZ0XuIfC+DYO4xVnAjDIC37MU4J+1n9C0XLODKAV10=
-github.com/Jipok/go-persist v1.2.0/go.mod h1:AcnXlz/sZXHnHv7RZF+VcCHCenilTie2KChtR5fyuE4=
+github.com/Jipok/go-persist v1.5.0 h1:tsfmDHTLPDmnWzLzx4x/CMy+bG3L47v+vBWsFLpapyU=
+github.com/Jipok/go-persist v1.5.0/go.mod h1:AcnXlz/sZXHnHv7RZF+VcCHCenilTie2KChtR5fyuE4=
 github.com/puzpuzpuz/xsync/v3 v3.5.1 h1:GJYJZwO6IdxN/IKbneznS6yPkVC+c3zyY/j19c++5Fg=
 github.com/puzpuzpuz/xsync/v3 v3.5.1/go.mod h1:VjzYrABPabuM4KyBh1Ftq6u8nhwY5tBPKP9jpmh0nnA=
