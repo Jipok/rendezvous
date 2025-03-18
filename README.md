@@ -10,9 +10,9 @@ Key limit: 100 bytes
 
 Value limit: 1000 bytes
 
-Rate limit: 1 POST per minute
+Rate limit: 11 tokens per minute (POST=3 tokens, GET=1 token)
 
-Expire time: 2 hour
+Expire time: 2 hours
 
 ## 🚀 API Usage
 
@@ -96,7 +96,7 @@ go build
 - **No Registration**: Just use it directly, no accounts needed
 - **Simple HTTP API**: Store and retrieve values with basic HTTP GET/POST requests
 - **Ephemeral Storage**: Keys automatically expire after configured time
-- **Rate Limited**: Basic protection against abuse (one POST per IP per minute)
+- **Rate Limited**: Basic protection against abuse (token-based rate limiting per IP)
 - **Configurable Limits**: Adjustable key/value sizes and storage capacity
 - **Zero Dependencies**: Just the server, no databases needed
 - **Value Protection**: Optional secret-based protection for value updates
@@ -104,16 +104,18 @@ go build
 
 ## ⚙️ Configuration Options
 
-| Flag            | Default        | Description                                    |
-|-----------------|----------------|------------------------------------------------|
-| -maxKeySize     | 100            | Maximum key length in bytes                    |
-| -maxValueSize   | 1000           | Maximum value size in bytes (including secret) |
-| -maxNumKV       | 100000         | Maximum number of key-value pairs              |
-| -expireDuration | 2h             | Time after which keys expire                   |
-| -resetDuration  | 1m             | Duration between rate limit resets             |
-| -saveDuration   | 30m            | Duration between state saves                   |
-| -port           | 80             | Server port                                    |
-| -l              | 0.0.0.0        | Interface to listen on                         |
+| Flag                   | Default        | Description                                                 |
+|------------------------|----------------|-------------------------------------------------------------|
+| -maxKeySize            | 100            | Maximum key length in bytes                                 |
+| -maxValueSize          | 1000           | Maximum value size in bytes (including secret)              |
+| -maxNumKV              | 100000         | Maximum number of key-value pairs                           |
+| -expireDuration        | 2h             | Time after which keys expire                                |
+| -resetDuration         | 1m             | Duration between rate limit resets                          |
+| -saveDuration          | 30m            | Duration between state saves                                |
+| -maxRequests           | 11             | Maximum request tokens per IP (POST=3 tokens, GET=1 token)  |
+| -port                  | 80             | Server port                                                 |
+| -l                     | 0.0.0.0        | Interface to listen on                                      |
+| -disableLocalIPWaring  | false          | Disable warnings about requests from localhost              |
 
 Example:
 
@@ -126,5 +128,4 @@ Example:
 - **Ephemeral Storage**: All data is temporary and will be deleted after expiration
 - **No Encryption**: Data is stored and transmitted without encryption(except TLS)
 - **Size Limits**: Value size limit includes owner secret if used
-- **Rate Limiting**: Only one POST request per IP address per minute
 - **IPv4 Only**: For rate-limit purpose supports only IPv4 addresses

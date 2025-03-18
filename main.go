@@ -27,8 +27,9 @@ var (
 	maxValueSize   = flag.Int("maxValueSize", 1000, "maximum allowed value size in bytes")
 	maxNumKV       = flag.Int("maxNumKV", 100000, "maximum number of key-value pairs allowed")
 	expireDuration = flag.Duration("expireDuration", 2*time.Hour, "duration after which a key expires")
-	resetDuration  = flag.Duration("resetDuration", time.Minute, "duration between resets of the POST rate limit")
+	resetDuration  = flag.Duration("resetDuration", time.Minute, "duration between resets of the requests rate limit")
 	saveDuration   = flag.Duration("saveDuration", 30*time.Minute, "duration between automatic state saves")
+	maxRequests    = flag.Int("maxRequests", 11, "maximum request tokens per IP per resetDuration (POST=3 tokens, GET=1 token)")
 	port           = flag.String("port", "80", "port on which the server listens")
 	listen         = flag.String("l", "0.0.0.0", "interface to listen")
 	disableWarning = flag.Bool("disableLocalIPWaring", false, "disable warnings about requests from localhost")
@@ -46,12 +47,11 @@ type Entry struct {
 }
 
 var (
-	kvStore *persist.Store
+	kvStore = persist.New()
 	kvMap   *persist.PersistMap[*Entry] // stores key -> *Entry.
 
-	// postRateLimit is a set storing IPs which already did a POST in the current minute
-	// Using struct{} as the value saves memory
-	postRateLimit = make(map[[4]byte]struct{})
+	// rateLimit is a map storing available request per IP
+	rateLimit = make(map[[4]byte]uint8)
 	// mu protects postRateLimit
 	mu sync.RWMutex
 )
@@ -120,13 +120,52 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get the real client IP address, considering proxy headers
+	parsedIP, stringIP := getRealIP(r)
+	if parsedIP == nil {
+		return // Invalid IP format
+	}
+	ip4 := parsedIP.To4()
+	if ip4 == nil {
+		http.Error(w, "Only IPv4 is supported", http.StatusBadRequest)
+		return
+	}
+	var ipKey [4]byte
+	copy(ipKey[:], ip4)
+
+	// Rate limiting
+	mu.Lock()
+	// If no requests registered for this IP, assume default
+	availableTokens, exists := rateLimit[ipKey]
+	if !exists {
+		availableTokens = uint8(*maxRequests)
+	}
+	if r.Method == http.MethodPost {
+		// Check if there are at least 3 tokens for a POST request
+		if availableTokens < 3 {
+			mu.Unlock()
+			http.Error(w, "Rate limit", http.StatusTooManyRequests)
+			return
+		}
+		availableTokens -= 3
+	} else {
+		// Check if there is at least 1 token for a GET request
+		if availableTokens < 1 {
+			mu.Unlock()
+			http.Error(w, "Rate limit", http.StatusTooManyRequests)
+			return
+		}
+		availableTokens -= 1
+	}
+	// Update the requests counter for this IP
+	rateLimit[ipKey] = availableTokens
+	mu.Unlock()
+
 	// Special handling for /ip/ paths in POST requests
 	if len(key) > 3 && key[:3] == "ip/" && r.Method == http.MethodPost {
-		// Automatically prefix POST keys with client's IP
-		_, clientIP := getRealIP(r)
 		remainder := key[3:] // part after "ip/"
-		// Construct the effective key as "ip/<clientIP>/<remaining part>"
-		key = "ip/" + clientIP + "/" + remainder
+		// Automatically prefix POST keys with client's IP
+		key = "ip/" + stringIP + "/" + remainder
 	}
 
 	handleKeyRequest(w, r, key)
@@ -136,30 +175,6 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 func handleKeyRequest(w http.ResponseWriter, r *http.Request, key string) {
 	switch r.Method {
 	case http.MethodPost:
-		// Get the real client IP address, considering proxy headers
-		parsedIP, _ := getRealIP(r)
-		if parsedIP == nil {
-			return // Invalid IP format
-		}
-		ip4 := parsedIP.To4()
-		if ip4 == nil {
-			http.Error(w, "Only IPv4 is supported", http.StatusBadRequest)
-			return
-		}
-		var ipKey [4]byte
-		copy(ipKey[:], ip4)
-
-		// Rate limiting: allow only one POST per minute per IP
-		mu.Lock()
-		if _, exists := postRateLimit[ipKey]; exists {
-			mu.Unlock()
-			http.Error(w, "Rate limit", http.StatusTooManyRequests)
-			return
-		}
-		// Mark this IP as posted
-		postRateLimit[ipKey] = struct{}{}
-		mu.Unlock()
-
 		authSecret := r.Header.Get("X-Owner-Secret")
 		// Check that the secret alone does not exceed maxValueSize
 		if len(authSecret) > *maxValueSize {
@@ -250,12 +265,12 @@ func cleanupExpiredKeys() {
 	}
 }
 
-// resetPostRateLimit resets the set of IPs that have made a POST every resetDuration
-func resetPostRateLimit() {
+// resetRateLimit resets the map storing requests counter per IP
+func resetRateLimit() {
 	for {
 		time.Sleep(*resetDuration)
 		mu.Lock()
-		postRateLimit = make(map[[4]byte]struct{})
+		rateLimit = make(map[[4]byte]uint8)
 		mu.Unlock()
 	}
 }
@@ -278,21 +293,20 @@ func main() {
 	precompressIndexHtml()
 
 	var err error
-	kvStore, err = persist.Open("store.db")
+	kvMap, err = persist.Map[*Entry](kvStore, "kv")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = kvStore.Open("store.db")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer kvStore.Close()
 
 	kvStore.SetSyncInterval(*saveDuration)
-
-	kvMap, err = persist.Map[*Entry](kvStore, "kv")
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	go cleanupExpiredKeys()
-	go resetPostRateLimit()
+	go resetRateLimit()
 
 	addr := *listen + ":" + *port
 	server := &http.Server{

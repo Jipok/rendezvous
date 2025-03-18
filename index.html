@@ -189,8 +189,8 @@
         <ul>
             <li>Key limit: 100 bytes</li>
             <li>Value limit: 1000 bytes</li>
-            <li>Rate limit: 1 POST per minute</li>
-            <li>Expire time: 2 hour</li>
+            <li>Rate limit: 11 tokens per minute (POST=3 tokens, GET=1 token)</li>
+            <li>Expire time: 2 hours</li>
         </ul>
         
         <h2><span class="emoji">🚀</span> API Usage</h2>
@@ -250,7 +250,7 @@ go build
             <li><strong>No Registration</strong>: Just use it directly, no accounts needed</li>
             <li><strong>Simple HTTP API</strong>: Store and retrieve values with basic HTTP GET/POST requests</li>
             <li><strong>Ephemeral Storage</strong>: Keys automatically expire after configured time</li>
-            <li><strong>Rate Limited</strong>: Basic protection against abuse (one POST per IP per minute)</li>
+            <li><strong>Rate Limited</strong>: Basic protection against abuse (token-based rate limiting per IP)</li>
             <li><strong>Configurable Limits</strong>: Adjustable key/value sizes and storage capacity</li>
             <li><strong>Zero Dependencies</strong>: Just the server, no databases needed</li>
             <li><strong>Value Protection</strong>: Optional secret-based protection for value updates</li>
@@ -297,6 +297,11 @@ go build
                     <td>Duration between state saves</td>
                 </tr>
                 <tr>
+                    <td>-maxRequests</td>
+                    <td>11</td>
+                    <td>Maximum request tokens per IP (POST=3 tokens, GET=1 token)</td>
+                </tr>
+                <tr>
                     <td>-port</td>
                     <td>80</td>
                     <td>Server port</td>
@@ -305,6 +310,11 @@ go build
                     <td>-l</td>
                     <td>0.0.0.0</td>
                     <td>Interface to listen on</td>
+                </tr>
+                <tr>
+                    <td>-disableLocalIPWaring</td>
+                    <td>false</td>
+                    <td>Disable warnings about requests from localhost</td>
                 </tr>
             </tbody>
         </table>
@@ -317,7 +327,6 @@ go build
             <li><strong>Ephemeral Storage</strong>: All data is temporary and will be deleted after expiration</li>
             <li><strong>No Encryption</strong>: Data is stored and transmitted without encryption(except TLS)</li>
             <li><strong>Size Limits</strong>: Value size limit includes owner secret if used</li>
-            <li><strong>Rate Limiting</strong>: Only one POST request per IP address per minute</li>
             <li><strong>IPv4 Only</strong>: For rate-limit purpose supports only IPv4 addresses</li>
         </ul>
     </main>
